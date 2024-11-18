@@ -1,0 +1,46 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Packages
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+*.egg-info/
+
+# Virtual environment
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# dotenv
+.env
+
+# Logs
+logs/
+*.log
+
+# MacOS
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+templates/
+monoprompting/
+readmetoadd.tex
