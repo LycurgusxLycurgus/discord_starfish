@@ -44,3 +44,6 @@ logs/
 templates/
 monoprompting/
 readmetoadd.tex
+src/tests/
+src/test_memory_processor.py
+src/test_memory_decision.py

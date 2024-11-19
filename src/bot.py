@@ -9,6 +9,10 @@ from discord.ext import commands
 import openai
 from config import Config
 from prompts import SYSTEM_PROMPTS, TOPICS
+from discord.ext import tasks
+from datetime import datetime, time
+from memory_processor import process_daily_memories
+from memory_decision import select_relevant_memories
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -56,13 +60,18 @@ def get_conversation_context(user_id):
     ])
 
 def get_random_format():
-    return random.choice(length_formats)['format']
+    random_format = random.choice(length_formats)['format']
+    logger.info(f"Selected random format: {random_format}")
+    return random_format
 
 async def generate_content(user_message, user_id, username):
     try:
         random_format = get_random_format()
         conversation_context = get_conversation_context(user_id)
         user_identifier = f"@{username}" if username else f"User#{user_id}"
+        
+        # Get relevant memories for this conversation
+        memories = await select_relevant_memories(user_identifier, user_message)
         
         messages = [
             {
@@ -76,7 +85,7 @@ async def generate_content(user_message, user_id, username):
 
 New message from {user_identifier}: "{user_message}"
 
-Let this emotion shape your response: {random_format}. Remember to respond like a text message using text-speak and replacing 'r' with 'fw' and 'l' with 'w'. And do not use emojis. Keep the conversation context in mind when responding."""
+Let this emotion shape your response: {random_format}. Remember to respond like a text message using text-speak and replacing 'r' with 'fw' and 'l' with 'w'. And do not use emojis. Keep the conversation context in mind when responding; keep your memories in mind when responding: {memories}."""
             }
         ]
         
@@ -106,6 +115,7 @@ Let this emotion shape your response: {random_format}. Remember to respond like 
 async def on_ready():
     logger.info(f'Logged in as {bot.user.name} - {bot.user.id}')
     logger.info(f'Bot mention string: <@{bot.user.id}>')
+    process_memories.start()  # Start the memory processing task
     print('Discord AI Bot is online!')
 
 @bot.event
@@ -147,6 +157,17 @@ async def on_error(event, *args, **kwargs):
     logger.error(f'Error in event {event}: {args} {kwargs}')
     if event == 'on_message':
         await args[0].reply("An unexpected error occurred while processing your message.")
+
+@tasks.loop(time=time(hour=23, minute=55))  # Run at 23:55 every day
+async def process_memories():
+    try:
+        logger.info("Starting nightly memory processing...")
+        await process_daily_memories(user_conversations)
+        # Clear the day's conversations after processing
+        user_conversations.clear()
+        logger.info("Nightly memory processing completed")
+    except Exception as e:
+        logger.error(f"Error in nightly memory processing: {e}")
 
 # Startup message
 if __name__ == "__main__":
