@@ -13,6 +13,7 @@ from discord.ext import tasks
 from datetime import datetime, time
 from memory_processor import process_daily_memories
 from memory_decision import select_relevant_memories
+from story_circle_manager import get_current_context, update_story_circle, progress_narrative
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -66,12 +67,27 @@ def get_random_format():
 
 async def generate_content(user_message, user_id, username):
     try:
+        # First, gather all required data
         random_format = get_random_format()
         conversation_context = get_conversation_context(user_id)
         user_identifier = f"@{username}" if username else f"User#{user_id}"
         
-        # Get relevant memories for this conversation
+        # Get relevant memories for this conversation - add await here
         memories = await select_relevant_memories(user_identifier, user_message)
+        
+        # Get current story circle context
+        narrative_context = get_current_context()
+        
+        # Now that we have all data, log it
+        logger.info("=== Message Generation Details ===")
+        logger.info(f"Conversation Context: {conversation_context}")
+        logger.info(f"User Identifier: {user_identifier}")
+        logger.info(f"User Message: {user_message}")
+        logger.info(f"Random Format: {random_format}")
+        logger.info(f"Memories: {memories}")
+        logger.info(f"Current Event: {narrative_context['current_event']}")
+        logger.info(f"Inner Dialogue: {narrative_context['current_inner_dialogue']}")
+        logger.info("===============================")
         
         messages = [
             {
@@ -85,7 +101,7 @@ async def generate_content(user_message, user_id, username):
 
 New message from {user_identifier}: "{user_message}"
 
-Let this emotion shape your response: {random_format}. Remember to respond like a text message using text-speak and replacing 'r' with 'fw' and 'l' with 'w'. And do not use emojis. Keep the conversation context in mind when responding; keep your memories in mind when responding: {memories}."""
+Let this emotion shape your response: {random_format}. Remember to respond like a text message using text-speak and replacing 'r' with 'fw' and 'l' with 'w'. And do not use emojis. Keep the conversation context in mind when responding; keep your memories in mind when responding: {memories}. Your character has an arc, if it seems relevant to your response, mention it, where the current event is: {narrative_context['current_event']} and the inner dialogue to such an event is: {narrative_context['current_inner_dialogue']}."""
             }
         ]
         
@@ -116,6 +132,7 @@ async def on_ready():
     logger.info(f'Logged in as {bot.user.name} - {bot.user.id}')
     logger.info(f'Bot mention string: <@{bot.user.id}>')
     process_memories.start()  # Start the memory processing task
+    update_narrative.start()  # Start the narrative update task
     print('Discord AI Bot is online!')
 
 @bot.event
@@ -168,6 +185,15 @@ async def process_memories():
         logger.info("Nightly memory processing completed")
     except Exception as e:
         logger.error(f"Error in nightly memory processing: {e}")
+
+@tasks.loop(hours=6)
+async def update_narrative():
+    try:
+        logger.info("Progressing story circle narrative...")
+        await progress_narrative()  # This will either move to next event or generate new content
+        logger.info("Story circle progression completed")
+    except Exception as e:
+        logger.error(f"Error in story circle progression: {e}")
 
 # Startup message
 if __name__ == "__main__":
