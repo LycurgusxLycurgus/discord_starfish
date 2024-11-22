@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 import logging
 from config import Config
+from creativity_manager import generate_creative_instructions
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -350,6 +351,9 @@ async def update_story_circle():
         # If we need new events, proceed with AI generation
         circles_memory = await load_circles_memory()
         
+        # Generate creative instructions before updating the story circle
+        creative_storm_instructions = await generate_creative_instructions(circles_memory)
+        
         # Format the system prompt with current data
         formatted_prompt = STORY_CIRCLE_PROMPT.format(
             story_circle=json.dumps(story_circle, indent=2, ensure_ascii=False),
@@ -361,7 +365,7 @@ async def update_story_circle():
             model="hf:nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",
             messages=[
                 {"role": "system", "content": formatted_prompt},
-                {"role": "user", "content": "Generate the next story circle update in the exact JSON format as shown in the template in your system prompt, without any additional text or comments, nor backticks, snippets or other formatting. Ensure the new phase or story circle is highly creative and compelling."}
+                {"role": "user", "content": f"Generate the next story circle update in the exact JSON format as shown in the template in your system prompt, without any additional text or comments, nor backticks, snippets or other formatting. Ensure the new phase or story circle is highly creative and compelling by following these instructions: {creative_storm_instructions}."}
             ],
             temperature=0.0,
             max_tokens=1000
