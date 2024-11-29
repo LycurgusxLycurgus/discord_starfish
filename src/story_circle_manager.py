@@ -1,5 +1,5 @@
 import json
-import openai
+from openai import OpenAI
 import asyncio
 from datetime import datetime
 import logging
@@ -10,9 +10,11 @@ from creativity_manager import generate_creative_instructions
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('story_circle_manager')
 
-# Initialize OpenAI
-openai.api_key = Config.OPENAI_API_KEY
-openai.api_base = "https://glhf.chat/api/openai/v1"
+# Initialize OpenAI client
+client = OpenAI(
+    api_key=Config.OPENAI_API_KEY,
+    base_url="https://glhf.chat/api/openai/v1"
+)
 
 # File paths
 STORY_CIRCLE_PATH = 'src/db/story_circle.json'
@@ -234,8 +236,9 @@ async def generate_circle_summary(story_circle, circles_memory):
             previous_summaries=json.dumps(circles_memory, indent=2, ensure_ascii=False)
         )
         
-        # Get the summary from the AI
-        response = await openai.ChatCompletion.acreate(
+        # Get the summary from the AI using new SDK syntax
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
             model="hf:nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",
             messages=[
                 {"role": "system", "content": formatted_prompt},
@@ -244,19 +247,18 @@ async def generate_circle_summary(story_circle, circles_memory):
                     "content": "Generate a single-paragraph summary of this story circle and return it in the exact JSON format specified in your system prompt. Include only the JSON object, no other text, comments, backticks, or other formatting."
                 }
             ],
-            temperature=0.0,  # Set to 0 for more consistent JSON formatting
+            temperature=0.0,
             max_tokens=500
         )
         
-        # Parse the response
+        # Parse the response with updated response structure
         try:
-            response_text = response.choices[0].message['content'].strip()
+            response_text = response.choices[0].message.content.strip()
             print("\nAI Raw Response:")
             print(response_text)  # Debug print
             
             summary = json.loads(response_text)
             
-            # Return the entire memories structure instead of just the first memory
             return {
                 "memories": summary["memories"] if "memories" in summary else [
                     "A story about Fwog's adventure (summary generation failed)"
@@ -269,7 +271,7 @@ async def generate_circle_summary(story_circle, circles_memory):
             
     except Exception as e:
         logger.error(f"Error generating circle summary: {e}")
-        raise  # Let the error propagate up
+        raise
 
 async def archive_completed_circle(story_circle):
     """Archive a completed story circle to circles_memory.json"""
@@ -360,8 +362,9 @@ async def update_story_circle():
             circle_memories=json.dumps(circles_memory, indent=2, ensure_ascii=False)
         )
         
-        # Get the updated narrative from the AI
-        response = await openai.ChatCompletion.acreate(
+        # Get the updated narrative from the AI using new SDK syntax
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
             model="hf:nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",
             messages=[
                 {"role": "system", "content": formatted_prompt},
@@ -371,9 +374,9 @@ async def update_story_circle():
             max_tokens=1000
         )
         
-        # Parse the response
+        # Parse the response with updated response structure
         try:
-            new_story_circle = json.loads(response.choices[0].message['content'])
+            new_story_circle = json.loads(response.choices[0].message.content)
             
             # Check if we've completed a circle
             current_phase = new_story_circle["narrative"]["current_phase"]

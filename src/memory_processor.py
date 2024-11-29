@@ -1,5 +1,5 @@
 import json
-import openai
+from openai import OpenAI
 import asyncio
 from datetime import datetime
 from config import Config
@@ -9,9 +9,11 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('memory_processor')
 
-# Initialize OpenAI
-openai.api_key = Config.OPENAI_API_KEY
-openai.api_base = "https://glhf.chat/api/openai/v1"
+# Initialize OpenAI client
+client = OpenAI(
+    api_key=Config.OPENAI_API_KEY,
+    base_url="https://glhf.chat/api/openai/v1"
+)
 
 MEMORY_ANALYSIS_PROMPT = """Analyze the following conversations and extract topics and summaries in JSON format. 
 Compare these with existing memories to determine if they're new and relevant for the character (a whimsical, innocent frog-like being).
@@ -41,6 +43,7 @@ Rules for relevancy:
 3. Should be expressed in the character's style (replacing 'r' with 'fw' and 'l' with 'w')
 4. Should be a personal experience or observation
 5. Should be simple enough for a child-like mind to grasp
+6. Should be something super detailed and specific from the conversations, otherwise mark it as irrelevant
 """
 
 async def analyze_daily_conversations(user_conversations):
@@ -58,13 +61,14 @@ async def analyze_daily_conversations(user_conversations):
             conversations=formatted_conversations
         )
         
-        # Get analysis from Nemotron
-        response = await openai.ChatCompletion.acreate(
+        # Get analysis from Nemotron using new SDK syntax
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
             model="hf:nvidia/Llama-3.1-Nemotron-70B-Instruct-HF",
             messages=[
                 {
                     "role": "system", 
-                    "content": """You are a precise analysis tool that MUST respond with ONLY valid JSON format.
+                    "content": """You are a precise analysis tool to generate relevant memories (Should be something super detailed and specific from the conversations, and not repeated from the existing memories cited in your system-prompt, to mark them as relevant, otherwise mark it as irrelevant) that MUST respond with ONLY valid JSON format.
                     Do not include any explanatory text before or after the JSON.
                     The JSON must exactly match the requested format.
                     Do not include markdown formatting or code blocks."""
@@ -76,7 +80,7 @@ async def analyze_daily_conversations(user_conversations):
         )
         
         # Log the raw response for debugging
-        response_content = response.choices[0].message['content']
+        response_content = response.choices[0].message.content
         logger.info(f"Raw API Response: {response_content}")
         
         # Try to clean the response if needed
